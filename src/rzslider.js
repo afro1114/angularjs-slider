@@ -65,6 +65,7 @@
       getTickColor: null,
       getPointerColor: null,
       keyboardSupport: true,
+      logScale: false,
       scale: 1,
       enforceStep: true,
       enforceRange: false,
@@ -835,6 +836,8 @@
         this.precision = +this.options.precision;
 
         this.minValue = this.options.floor;
+        if (this.options.logScale && this.minValue === 0)
+          throw new Error("Can't use floor=0 with logarithmic scale");
 
         if (this.options.enforceStep) {
           this.lowValue = this.roundStep(this.lowValue);
@@ -1411,10 +1414,19 @@
        * @returns {number}
        */
       valueToOffset: function(val) {
-        if (this.options.rightToLeft) {
-          return (this.maxValue - this.sanitizeValue(val)) * this.maxPos / this.valueRange || 0;
+        var sanitizedValue = this.sanitizeValue(val);
+        if (!this.options.logScale) {
+          if (this.options.rightToLeft) {
+            return (this.maxValue - sanitizedValue) * this.maxPos / this.valueRange || 0;
+          }
+          return (sanitizedValue - this.minValue) * this.maxPos / this.valueRange || 0;
         }
-        return (this.sanitizeValue(val) - this.minValue) * this.maxPos / this.valueRange || 0;
+        else {
+          var minLog = Math.log(this.minValue),
+            maxLog = Math.log(this.maxValue),
+            scale = (maxLog - minLog) / (this.maxPos);
+          return (Math.log(sanitizedValue) - minLog) / scale || 0;
+        }
       },
 
       /**
@@ -1434,10 +1446,18 @@
        * @returns {number}
        */
       offsetToValue: function(offset) {
-        if (this.options.rightToLeft) {
-          return (1 - (offset / this.maxPos)) * this.valueRange + this.minValue;
+        if (!this.options.logScale) {
+          if (this.options.rightToLeft) {
+            return (1 - (offset / this.maxPos)) * this.valueRange + this.minValue;
+          }
+          return (offset / this.maxPos) * this.valueRange + this.minValue;
         }
-        return (offset / this.maxPos) * this.valueRange + this.minValue;
+        else {
+          var minLog = Math.log(this.minValue),
+            maxLog = Math.log(this.maxValue),
+            scale = (maxLog - minLog) / (this.maxPos);
+          return Math.exp(minLog + scale * offset);
+        }
       },
 
       // Events
